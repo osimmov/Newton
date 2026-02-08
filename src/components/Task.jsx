@@ -1,9 +1,10 @@
 /**
- * Task - Single task item with checkbox, title, description, and actions
- * Supports: complete/incomplete, edit title, edit description, delete
+ * Task - Single task item with checkbox, title, description
+ * Actions hidden by default; on hover a single ⋯ options button appears.
+ * Clicking options reveals dropdown: Edit task, Edit description, Delete
  */
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTasks } from '../context/TaskContext'
 
 function Task({ task }) {
@@ -12,6 +13,24 @@ function Task({ task }) {
   const [editTitle, setEditTitle] = useState(task.title)
   const [showDescription, setShowDescription] = useState(false)
   const [editDescription, setEditDescription] = useState(task.description || '')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    setEditTitle(task.title)
+    setEditDescription(task.description || '')
+  }, [task.title, task.description])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuOpen])
 
   function handleSaveTitle() {
     const trimmed = editTitle.trim()
@@ -21,11 +40,13 @@ function Task({ task }) {
       setEditTitle(task.title)
     }
     setIsEditing(false)
+    setMenuOpen(false)
   }
 
   function handleSaveDescription() {
     updateTask(task.id, { description: editDescription })
     setShowDescription(false)
+    setMenuOpen(false)
   }
 
   return (
@@ -43,8 +64,8 @@ function Task({ task }) {
         )}
       </button>
 
-      {/* Title / Description */}
-      <div className="flex-1 min-w-0">
+      {/* Title / Description - more space */}
+      <div className="flex-1 min-w-0 pr-1">
         {isEditing ? (
           <input
             value={editTitle}
@@ -57,13 +78,13 @@ function Task({ task }) {
         ) : (
           <span
             onClick={() => setIsEditing(true)}
-            className={`text-newton-text text-sm cursor-text ${task.completed ? 'line-through text-newton-muted' : ''}`}
+            className={`text-newton-text text-sm cursor-text block ${task.completed ? 'line-through text-newton-muted' : ''}`}
           >
             {task.title}
           </span>
         )}
         {task.description && !showDescription && (
-          <p className="text-xs text-newton-muted mt-0.5 truncate" onClick={() => setShowDescription(true)}>
+          <p className="text-xs text-newton-muted mt-0.5 truncate cursor-text" onClick={() => setShowDescription(true)}>
             {task.description}
           </p>
         )}
@@ -81,35 +102,40 @@ function Task({ task }) {
         )}
       </div>
 
-      {/* Actions: Edit (circular arrow), Description toggle, Delete */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+      {/* Single options button (⋯) - visible on hover only */}
+      <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
         <button
-          onClick={() => setIsEditing(true)}
-          className="p-1 rounded-full hover:bg-newton-surface text-newton-muted hover:text-newton-text transition-colors"
-          title="Edit task"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-        <button
-          onClick={() => (task.description || showDescription ? setShowDescription(!showDescription) : setShowDescription(true))}
+          onClick={() => setMenuOpen(!menuOpen)}
           className="p-1 rounded hover:bg-newton-surface text-newton-muted hover:text-newton-text transition-colors"
-          title="Edit description"
+          title="Options"
+          aria-expanded={menuOpen}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
           </svg>
         </button>
-        <button
-          onClick={() => deleteTask(task.id)}
-          className="p-1 rounded hover:bg-red-500/20 text-newton-muted hover:text-red-400 transition-colors"
-          title="Delete task"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        {menuOpen && (
+          <div className="absolute right-0 top-full mt-1 py-1 min-w-[140px] bg-newton-surface border border-newton-border rounded-lg shadow-lg z-10">
+            <button
+              onClick={() => { setIsEditing(true); setMenuOpen(false); }}
+              className="w-full px-3 py-2 text-left text-sm text-newton-text hover:bg-newton-charcoal transition-colors"
+            >
+              Edit task
+            </button>
+            <button
+              onClick={() => { setShowDescription(true); setMenuOpen(false); }}
+              className="w-full px-3 py-2 text-left text-sm text-newton-text hover:bg-newton-charcoal transition-colors"
+            >
+              Edit description
+            </button>
+            <button
+              onClick={() => { deleteTask(task.id); setMenuOpen(false); }}
+              className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              Delete task
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

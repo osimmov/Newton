@@ -51,8 +51,8 @@ function getActionIcon(action) {
   }
 }
 
-function ChangeLog() {
-  const { changeLog, user } = useTasks()
+function ChangeLog({ fullView }) {
+  const { changeLog } = useTasks()
 
   // Group entries by date (YYYY-MM-DD)
   const grouped = changeLog.reduce((acc, entry) => {
@@ -65,8 +65,12 @@ function ChangeLog() {
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
   return (
-    <aside className="w-[340px] flex-shrink-0 border-l border-newton-border bg-newton-charcoal flex flex-col">
-      {/* Header */}
+    <aside
+      className={`flex flex-col bg-newton-charcoal ${
+        fullView ? 'flex-1 max-w-2xl mx-auto border-x border-newton-border' : 'w-[340px] flex-shrink-0 border-l border-newton-border'
+      }`}
+    >
+      {/* Header - no account or plus buttons */}
       <div className="px-4 py-4 border-b border-newton-border">
         <h2 className="text-xl font-semibold text-newton-text">Progress</h2>
         <div className="flex items-center gap-2 mt-2 text-sm text-newton-muted">
@@ -74,18 +78,6 @@ function ChangeLog() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           <span>Feb 1 — Today</span>
-        </div>
-        <div className="flex items-center gap-2 mt-3">
-          <div className="w-8 h-8 rounded-full bg-newton-surface flex items-center justify-center text-newton-muted">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-            </svg>
-          </div>
-          <button className="p-1 rounded hover:bg-newton-surface text-newton-muted hover:text-newton-text transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
         </div>
       </div>
 
