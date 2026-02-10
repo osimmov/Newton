@@ -1,7 +1,7 @@
 /**
  * Newton - Productivity web app
  * Layout: Left sidebar (Main / Progress) + main content area
- * Main page: infinite horizontal days. Progress: separate view, not shown by default.
+ * Progress panel slides in from left, aligned with sidebar.
  */
 
 import { useState } from 'react'
@@ -19,8 +19,13 @@ function App() {
         <LeftSidebar activeView={activeView} onViewChange={setActiveView} />
 
         {activeView === 'main' && <DaysView />}
+
+        {/* Progress panel: slides in from left, aligned with sidebar */}
         {activeView === 'progress' && (
-          <div className="flex-1 flex overflow-hidden">
+          <div
+            className="flex-1 flex overflow-hidden"
+            style={{ animation: 'slideInLeft 0.25s ease-out forwards' }}
+          >
             <ChangeLog fullView />
           </div>
         )}

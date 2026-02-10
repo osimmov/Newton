@@ -15,15 +15,19 @@ function DayColumn({ dayId, date, isToday, ...rest }) {
 
   return (
     <div
-      className={`flex flex-col min-w-[280px] flex-shrink-0 border-r border-newton-border ${isToday ? 'bg-newton-surface/30' : ''}`}
+      className={`flex flex-col w-[280px] min-w-[280px] flex-shrink-0 border-r border-newton-border overflow-hidden ${isToday ? 'bg-newton-surface/30' : ''}`}
       data-day-id={dayId}
       {...rest}
     >
-      {/* Header - no buttons */}
+      {/* Header - no buttons. Today: date in orange */}
       <div className="flex items-start justify-between gap-2 px-4 py-4 border-b border-newton-border">
         <div>
-          <h2 className="text-lg font-semibold text-newton-text">{dayName}</h2>
-          <p className="text-sm text-newton-muted mt-0.5">{dateStr}</p>
+          <h2 className={`text-lg font-semibold ${isToday ? 'text-newton-today' : 'text-newton-text'}`}>
+            {dayName}
+          </h2>
+          <p className={`text-sm mt-0.5 ${isToday ? 'text-newton-today' : 'text-newton-muted'}`}>
+            {dateStr}
+          </p>
         </div>
       </div>
 

@@ -17,6 +17,7 @@ export default {
           muted: '#9ca3af',
           text: '#e5e7eb',
           accent: '#6b7280',
+          today: '#e07c4c',
         },
       },
     },

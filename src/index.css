@@ -13,3 +13,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
   @apply bg-newton-charcoal text-newton-text;
 }
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
