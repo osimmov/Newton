@@ -9,7 +9,7 @@ function LeftSidebar({ activeView, onViewChange }) {
   const isProgress = activeView === 'progress'
 
   return (
-    <aside className="w-16 flex-shrink-0 flex flex-col items-center py-4 bg-newton-surface border-r border-newton-border">
+    <aside className="fixed left-0 top-0 bottom-0 z-20 w-16 flex flex-col items-center py-4 bg-newton-surface border-r border-newton-border">
       {/* Main page (Days / Tasks view) */}
       <button
         onClick={() => onViewChange('main')}

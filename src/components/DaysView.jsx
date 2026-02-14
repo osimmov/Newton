@@ -1,17 +1,17 @@
 /**
  * DaysView - Infinite horizontal scrolling timeline (TimeStripe-style)
  *
- * Implementation: Date-based window (±30 days initially). Expansion triggers only
- * when user scrolls near left/right edge (scroll position guard) + throttling
- * to prevent feedback loops. Backend-friendly: can swap for API date fetches.
+ * Uses IntersectionObserver on left/right sentinels: when a sentinel comes into
+ * view (user scrolled to that edge), we expand the date window. Zero rootMargin
+ * so we only expand when the sentinel is actually visible. 800ms cooldown
+ * prevents loops. Backend-friendly: can swap for API date fetches.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
 import DayColumn from './DayColumn'
 
 const WINDOW_SIZE = 30 // days before/after center
 const EXPAND_BY = 14 // days to add when near edge
-const SCROLL_THRESHOLD = 400 // px from edge to trigger expansion
 const EXPAND_COOLDOWN_MS = 800 // min ms between expansions to prevent loops
 
 function toDayId(date) {
@@ -41,7 +41,10 @@ function DaysView() {
   const [windowStart, setWindowStart] = useState(initialStart)
   const [windowEnd, setWindowEnd] = useState(initialEnd)
   const scrollRef = useRef(null)
+  const leftSentinelRef = useRef(null)
+  const rightSentinelRef = useRef(null)
   const lastExpandRef = useRef(0)
+  const hasScrolledToTodayRef = useRef(false)
 
   const dates = getDates(windowStart, windowEnd)
   const todayStr = today.toDateString()
@@ -70,19 +73,28 @@ function DaysView() {
 
   useEffect(() => {
     const container = scrollRef.current
-    if (!container) return
+    const leftSentinel = leftSentinelRef.current
+    const rightSentinel = rightSentinelRef.current
+    if (!container || !leftSentinel || !rightSentinel) return
 
-    function handleScroll() {
-      const { scrollLeft, scrollWidth, clientWidth } = container
-      const nearLeft = scrollLeft < SCROLL_THRESHOLD
-      const nearRight = scrollLeft > scrollWidth - clientWidth - SCROLL_THRESHOLD
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          if (entry.target === leftSentinel) expandLeft()
+          if (entry.target === rightSentinel) expandRight()
+        }
+      },
+      {
+        root: container,
+        rootMargin: '0px',
+        threshold: 0,
+      }
+    )
 
-      if (nearLeft) expandLeft()
-      if (nearRight) expandRight()
-    }
-
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
+    observer.observe(leftSentinel)
+    observer.observe(rightSentinel)
+    return () => observer.disconnect()
   }, [expandLeft, expandRight])
 
   function scrollToToday() {
@@ -94,22 +106,29 @@ function DaysView() {
     }
   }
 
-  // Scroll to today on mount
-  useEffect(() => {
+  // Scroll to today when Days view is first shown so the user sees Today first (once per mount)
+  useLayoutEffect(() => {
+    if (hasScrolledToTodayRef.current) return
     const container = scrollRef.current
     if (!container) return
-    const todayCol = container.querySelector('[data-today="true"]')
-    if (todayCol) {
-      todayCol.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' })
+    const scrollToTodayCol = () => {
+      const todayCol = container.querySelector('[data-today="true"]')
+      if (todayCol) {
+        hasScrolledToTodayRef.current = true
+        todayCol.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' })
+      }
     }
+    scrollToTodayCol()
+    requestAnimationFrame(() => requestAnimationFrame(scrollToTodayCol))
   }, [])
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
     <main
       ref={scrollRef}
-      className="flex-1 flex overflow-x-auto overflow-y-hidden min-h-0"
+      className="flex-1 flex overflow-x-scroll overflow-y-hidden min-h-0"
     >
+      <div ref={leftSentinelRef} className="flex-shrink-0 w-px min-h-full" aria-hidden />
       {dates.map((date) => (
         <DayColumn
           key={toDayId(date)}
@@ -119,6 +138,7 @@ function DaysView() {
           data-today={date.toDateString() === todayStr ? 'true' : undefined}
         />
       ))}
+      <div ref={rightSentinelRef} className="flex-shrink-0 w-px min-h-full" aria-hidden />
     </main>
 
     {/* Fixed Today button at bottom */}

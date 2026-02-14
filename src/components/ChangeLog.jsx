@@ -66,8 +66,8 @@ function ChangeLog({ fullView }) {
 
   return (
     <aside
-      className={`flex flex-col bg-newton-charcoal border-r border-newton-border ${
-        fullView ? 'flex-1 w-[340px] min-w-[340px] max-w-[340px]' : 'w-[340px] flex-shrink-0'
+      className={`flex flex-col bg-newton-charcoal ${
+        fullView ? 'flex-1 min-w-0 max-w-4xl' : 'w-[340px] flex-shrink-0 border-r border-newton-border'
       }`}
     >
       {/* Header - no account or plus buttons */}

@@ -15,9 +15,10 @@ function App() {
 
   return (
     <TaskProvider>
-      <div className="min-h-screen flex">
-        <LeftSidebar activeView={activeView} onViewChange={setActiveView} />
+      <LeftSidebar activeView={activeView} onViewChange={setActiveView} />
 
+      {/* Main content: offset by sidebar width so it never goes under the fixed sidebar */}
+      <div className="min-h-screen flex pl-16">
         {activeView === 'main' && <DaysView />}
 
         {/* Progress panel: slides in from left, aligned with sidebar */}
