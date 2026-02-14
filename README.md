@@ -21,7 +21,7 @@ A clean, functional productivity platform with a weekly task view and change tra
 | (Stretch Goal) Task classification | if time permits | [Link](https://github.com/osimmov/junior-independent-study/issues/11) |
 | (Stretch Goal) Task completion streak | if time permits | [Link](https://github.com/osimmov/junior-independent-study/issues/12) |
 | (Stretch Goal) Productivity metrics dashboard | if time permits | [Link](https://github.com/osimmov/junior-independent-study/issues/13) |
-| User Feedback | — | [Link](https://github.com/osimmov/junior-independent-study/issues/14) |
+| User Feedback | March 15th | [Link](https://github.com/osimmov/junior-independent-study/issues/14) |
 
 ## Features
 
