@@ -11,7 +11,6 @@ A clean, functional productivity platform with a weekly task view and change tra
 | Task creation | February 12th | [Link](https://github.com/osimmov/junior-independent-study/issues/1) |
 | Task status | February 15th | [Link](https://github.com/osimmov/junior-independent-study/issues/2) |
 | Edit/delete tasks | February 16th | [Link](https://github.com/osimmov/junior-independent-study/issues/3) |
-| Infinite scroll | February 18th | [Link](https://github.com/osimmov/junior-independent-study/issues/4) |
 | Description window | February 22nd | [Link](https://github.com/osimmov/junior-independent-study/issues/5) |
 | Data saving | February 22nd | [Link](https://github.com/osimmov/junior-independent-study/issues/6) |
 | Progress Panel | February 25th | [Link](https://github.com/osimmov/junior-independent-study/issues/7) |
