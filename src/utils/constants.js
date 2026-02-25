@@ -29,3 +29,7 @@ export const ACTION_LABELS = {
 }
 
 export const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// AI Reflections: local LLM via Ollama (e.g. DeepSeek 7B)
+export const OLLAMA_BASE_URL = 'http://localhost:11434'
+export const OLLAMA_REFLECTIONS_MODEL = 'deepseek-r1:7b'

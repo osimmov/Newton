@@ -9,6 +9,7 @@ import { TaskProvider } from './context/TaskContext'
 import LeftSidebar from './components/LeftSidebar'
 import DaysView from './components/DaysView'
 import ChangeLog from './components/ChangeLog'
+import ReflectionsPanel from './components/ReflectionsPanel'
 
 function App() {
   const [activeView, setActiveView] = useState('main')
@@ -28,6 +29,16 @@ function App() {
             style={{ animation: 'slideInLeft 0.25s ease-out forwards' }}
           >
             <ChangeLog fullView />
+          </div>
+        )}
+
+        {/* AI Reflections panel */}
+        {activeView === 'reflections' && (
+          <div
+            className="flex-1 flex overflow-hidden"
+            style={{ animation: 'slideInLeft 0.25s ease-out forwards' }}
+          >
+            <ReflectionsPanel />
           </div>
         )}
       </div>

@@ -38,7 +38,8 @@ function AddTaskInput({ dayId }) {
         onChange={(e) => setValue(e.target.value)}
         onBlur={handleBlur}
         placeholder="Add..."
-        className="w-full bg-transparent border border-newton-border rounded px-3 py-2 text-sm text-newton-text placeholder-newton-muted focus:outline-none focus:ring-1 focus:ring-newton-muted focus:border-transparent"
+        className="w-full bg-transparent border border-newton-border rounded 
+        px-3 py-2 text-sm text-newton-text placeholder-newton-muted focus:outline-none focus:ring-1 focus:ring-newton-muted focus:border-transparent"
       />
     </form>
   )
