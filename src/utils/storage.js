@@ -43,3 +43,24 @@ export function loadUser() {
 export function saveUser(name) {
   localStorage.setItem(STORAGE_KEYS.USER, name)
 }
+
+export function loadDateWindow() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.DATE_WINDOW)
+    if (!data) return null
+    const { start, end } = JSON.parse(data)
+    if (!start || !end) return null
+    return { start: new Date(start), end: new Date(end) }
+  } catch {
+    return null
+  }
+}
+
+export function saveDateWindow(start, end) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.DATE_WINDOW, JSON.stringify({
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+    }))
+  } catch {}
+}

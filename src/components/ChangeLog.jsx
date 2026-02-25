@@ -107,9 +107,7 @@ function ChangeLog({ fullView }) {
                           {entry.taskName}
                         </span>
                         {' '}
-                        {ACTION_LABELS[entry.action] || 'by'}
-                        {' '}
-                        {entry.userId}
+                        {ACTION_LABELS[entry.action] || ''}
                       </span>
                     </div>
                   </div>
