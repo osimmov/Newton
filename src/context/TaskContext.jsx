@@ -75,13 +75,25 @@ function taskReducer(state, action) {
       const tasks = state.tasks.map((t) =>
         t.id === action.taskId ? { ...t, ...updates } : t
       )
+      const taskTitle = updates.title ?? prev.title
+      let message = null
+      if (updates.description !== undefined) {
+        const prevDesc = (prev.description || '').trim()
+        const newDesc = (updates.description || '').trim()
+        if (!prevDesc && newDesc) {
+          message = `added description to the ${taskTitle} task`
+        } else if (prevDesc && newDesc && prev.description !== updates.description) {
+          message = `the description of ${taskTitle} was changed`
+        }
+      }
       const logEntry = {
         id: logId(),
         action: ACTIONS.EDITED,
         taskId: prev.id,
-        taskName: updates.title ?? prev.title,
+        taskName: taskTitle,
         timestamp: new Date().toISOString(),
         userId: state.user,
+        ...(message && { message }),
       }
       return {
         ...state,

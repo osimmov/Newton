@@ -103,11 +103,17 @@ function ChangeLog({ fullView }) {
                     <div className="flex-1 min-w-0">
                       <span className="text-newton-muted">{formatTime(entry.timestamp)}</span>
                       <span className="text-newton-muted ml-1">
-                        <span className="bg-newton-surface px-1.5 py-0.5 rounded text-newton-text">
-                          {entry.taskName}
-                        </span>
-                        {' '}
-                        {ACTION_LABELS[entry.action] || ''}
+                        {entry.message ? (
+                          entry.message
+                        ) : (
+                          <>
+                            <span className="bg-newton-surface px-1.5 py-0.5 rounded text-newton-text">
+                              {entry.taskName}
+                            </span>
+                            {' '}
+                            {ACTION_LABELS[entry.action] || ''}
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
