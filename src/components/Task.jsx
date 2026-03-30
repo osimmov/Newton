@@ -1,18 +1,20 @@
 /**
  * Task - Single task item with checkbox, title, description indicator
- * No description on main page. Click task opens pop-up.
- * Options menu on hover: Delete only.
+ * No description on main page. Click row opens pop-up (unless a drag just finished).
+ * Whole row is draggable to reorder within a day or move to another day (not from checkbox/⋯).
  */
 
 import { useState, useRef, useEffect } from 'react'
 import { useTasks } from '../context/TaskContext'
 import TaskPopUp from './TaskPopUp'
 
-function Task({ task }) {
+function Task({ task, dayTaskIndex = 0, onDragReorder }) {
   const { toggleTask, deleteTask } = useTasks()
   const [menuOpen, setMenuOpen] = useState(false)
   const [popUpOpen, setPopUpOpen] = useState(false)
   const menuRef = useRef(null)
+  const blockDragFromInteractiveRef = useRef(false)
+  const suppressClickAfterDragRef = useRef(false)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -25,10 +27,56 @@ function Task({ task }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [menuOpen])
 
+  useEffect(() => {
+    function clearBlock() {
+      blockDragFromInteractiveRef.current = false
+    }
+    window.addEventListener('pointerup', clearBlock)
+    window.addEventListener('pointercancel', clearBlock)
+    return () => {
+      window.removeEventListener('pointerup', clearBlock)
+      window.removeEventListener('pointercancel', clearBlock)
+    }
+  }, [])
+
+  function handleRowPointerDown(e) {
+    blockDragFromInteractiveRef.current = !!e.target.closest('button')
+  }
+
   function handleRowClick(e) {
-    // Don't open pop-up when clicking checkbox or options button
     if (e.target.closest('button')) return
+    if (suppressClickAfterDragRef.current) return
     setPopUpOpen(true)
+  }
+
+  function handleDragStart(e) {
+    if (blockDragFromInteractiveRef.current) {
+      e.preventDefault()
+      return
+    }
+    e.dataTransfer.setData('text/plain', task.id)
+    e.dataTransfer.effectAllowed = 'move'
+    e.stopPropagation()
+  }
+
+  function handleDragEnd() {
+    suppressClickAfterDragRef.current = true
+    window.setTimeout(() => {
+      suppressClickAfterDragRef.current = false
+    }, 150)
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  function handleDrop(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    const draggedId = e.dataTransfer.getData('text/plain')
+    if (!draggedId || draggedId === task.id || !onDragReorder) return
+    onDragReorder(draggedId, dayTaskIndex)
   }
 
   return (
@@ -36,9 +84,15 @@ function Task({ task }) {
       <div
         role="button"
         tabIndex={0}
+        draggable
+        onPointerDown={handleRowPointerDown}
         onClick={handleRowClick}
         onKeyDown={(e) => e.key === 'Enter' && handleRowClick(e)}
-        className="group flex items-center gap-2 py-2 px-1 border-b border-newton-border/50 last:border-b-0 cursor-pointer hover:bg-newton-surface/50 rounded transition-colors"
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className="group flex items-center gap-2 py-2 px-1 border-b border-newton-border/50 last:border-b-0 cursor-grab active:cursor-grabbing hover:bg-newton-surface/50 rounded transition-colors select-none"
       >
         {/* Checkbox */}
         <button

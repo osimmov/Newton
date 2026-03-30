@@ -42,12 +42,42 @@ function DayColumn({ dayId, date, isToday, ...rest }) {
 
 // Inner component that consumes context to filter tasks by day
 function DayTasks({ dayId }) {
-  const { tasks } = useTasks()
-  const dayTasks = tasks.filter((t) => t.dayId === dayId)
+  const { tasks, reorderTasksInDay, moveTaskToDay } = useTasks()
+  const dayTasks = tasks
+    .filter((t) => t.dayId === dayId)
+    .sort((a, b) => {
+      const oa = typeof a.order === 'number' ? a.order : 0
+      const ob = typeof b.order === 'number' ? b.order : 0
+      if (oa !== ob) return oa - ob
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+
+  function handleTaskDrop(draggedId, dropIndex) {
+    const dragged = tasks.find((t) => t.id === draggedId)
+    if (!dragged) return
+    if (dragged.dayId === dayId) {
+      const ids = dayTasks.map((t) => t.id)
+      const fromIndex = ids.indexOf(draggedId)
+      if (fromIndex === -1) return
+      if (fromIndex === dropIndex) return
+      const next = [...ids]
+      next.splice(fromIndex, 1)
+      next.splice(dropIndex, 0, draggedId)
+      reorderTasksInDay(dayId, next)
+    } else {
+      moveTaskToDay(draggedId, dayId, dropIndex)
+    }
+  }
+
   return (
     <>
-      {dayTasks.map((task) => (
-        <Task key={task.id} task={task} />
+      {dayTasks.map((task, index) => (
+        <Task
+          key={task.id}
+          task={task}
+          dayTaskIndex={index}
+          onDragReorder={handleTaskDrop}
+        />
       ))}
     </>
   )

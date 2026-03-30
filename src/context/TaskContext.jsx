@@ -18,12 +18,52 @@ function logId() {
   return `log_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
+/** Assign sequential order within each day (migration + consistency). */
+function normalizeTaskOrders(tasks) {
+  const byDay = new Map()
+  for (const t of tasks) {
+    if (!byDay.has(t.dayId)) byDay.set(t.dayId, [])
+    byDay.get(t.dayId).push(t)
+  }
+  const idToOrder = new Map()
+  for (const [, arr] of byDay) {
+    const sorted = [...arr].sort((a, b) => {
+      const oa = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER
+      const ob = typeof b.order === 'number' ? b.order : Number.MAX_SAFE_INTEGER
+      if (oa !== ob) return oa - ob
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+    sorted.forEach((t, i) => idToOrder.set(t.id, i))
+  }
+  return tasks.map((t) => ({ ...t, order: idToOrder.get(t.id) ?? 0 }))
+}
+
+function maxOrderForDay(tasks, dayId) {
+  return tasks.filter((t) => t.dayId === dayId).reduce((m, t) => Math.max(m, typeof t.order === 'number' ? t.order : -1), -1)
+}
+
+function sortTasksForDay(tasks, dayId) {
+  return tasks
+    .filter((t) => t.dayId === dayId)
+    .sort((a, b) => {
+      const oa = typeof a.order === 'number' ? a.order : 0
+      const ob = typeof b.order === 'number' ? b.order : 0
+      if (oa !== ob) return oa - ob
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+}
+
 function taskReducer(state, action) {
   switch (action.type) {
     case 'INIT': {
-      return { tasks: action.tasks, changeLog: action.changeLog, user: action.user }
+      return {
+        tasks: normalizeTaskOrders(action.tasks),
+        changeLog: action.changeLog,
+        user: action.user,
+      }
     }
     case 'ADD_TASK': {
+      const nextOrder = maxOrderForDay(state.tasks, action.dayId) + 1
       const newTask = {
         id: generateId(),
         dayId: action.dayId,
@@ -31,6 +71,7 @@ function taskReducer(state, action) {
         description: action.description || '',
         completed: false,
         createdAt: new Date().toISOString(),
+        order: nextOrder,
       }
       const tasks = [...state.tasks, newTask]
       const logEntry = {
@@ -119,11 +160,66 @@ function taskReducer(state, action) {
         changeLog: [logEntry, ...state.changeLog],
       }
     }
+    case 'REORDER_TASKS_IN_DAY': {
+      const { dayId, orderedIds } = action
+      const orderMap = new Map(orderedIds.map((id, i) => [id, i]))
+      const tasks = state.tasks.map((t) =>
+        t.dayId === dayId && orderMap.has(t.id) ? { ...t, order: orderMap.get(t.id) } : t
+      )
+      return { ...state, tasks }
+    }
+    case 'MOVE_TASK_TO_DAY': {
+      const { taskId, targetDayId, insertIndex } = action
+      const task = state.tasks.find((t) => t.id === taskId)
+      if (!task) return state
+      const sourceDayId = task.dayId
+      if (sourceDayId === targetDayId) return state
+
+      const targetSorted = sortTasksForDay(state.tasks, targetDayId).map((t) => t.id)
+      const insertAt = Math.max(0, Math.min(insertIndex, targetSorted.length))
+      const newTargetIds = [...targetSorted.slice(0, insertAt), taskId, ...targetSorted.slice(insertAt)]
+
+      const sourceSorted = sortTasksForDay(state.tasks, sourceDayId)
+        .filter((t) => t.id !== taskId)
+        .map((t) => t.id)
+
+      const tasks = state.tasks.map((t) => {
+        if (t.id === taskId) {
+          return { ...t, dayId: targetDayId, order: newTargetIds.indexOf(taskId) }
+        }
+        if (t.dayId === targetDayId) {
+          const o = newTargetIds.indexOf(t.id)
+          return o === -1 ? t : { ...t, order: o }
+        }
+        if (t.dayId === sourceDayId) {
+          const o = sourceSorted.indexOf(t.id)
+          return o === -1 ? t : { ...t, order: o }
+        }
+        return t
+      })
+
+      const logEntry = {
+        id: logId(),
+        action: ACTIONS.RESCHEDULED,
+        taskId: task.id,
+        taskName: task.title,
+        timestamp: new Date().toISOString(),
+        userId: state.user,
+        metadata: { fromDay: sourceDayId, toDay: targetDayId },
+      }
+      return {
+        ...state,
+        tasks,
+        changeLog: [logEntry, ...state.changeLog],
+      }
+    }
     case 'RESCHEDULE_TASK': {
       const task = state.tasks.find((t) => t.id === action.taskId)
       if (!task || task.dayId === action.newDayId) return state
+      const othersOnNewDay = state.tasks.filter((t) => t.dayId === action.newDayId && t.id !== task.id)
+      const nextOrder = othersOnNewDay.reduce((m, t) => Math.max(m, typeof t.order === 'number' ? t.order : -1), -1) + 1
       const tasks = state.tasks.map((t) =>
-        t.id === action.taskId ? { ...t, dayId: action.newDayId } : t
+        t.id === action.taskId ? { ...t, dayId: action.newDayId, order: nextOrder } : t
       )
       const logEntry = {
         id: logId(),
@@ -189,6 +285,14 @@ export function TaskProvider({ children }) {
     dispatch({ type: 'RESCHEDULE_TASK', taskId, newDayId })
   }, [])
 
+  const reorderTasksInDay = useCallback((dayId, orderedIds) => {
+    dispatch({ type: 'REORDER_TASKS_IN_DAY', dayId, orderedIds })
+  }, [])
+
+  const moveTaskToDay = useCallback((taskId, targetDayId, insertIndex) => {
+    dispatch({ type: 'MOVE_TASK_TO_DAY', taskId, targetDayId, insertIndex })
+  }, [])
+
   const value = {
     tasks: state.tasks,
     changeLog: state.changeLog,
@@ -198,6 +302,8 @@ export function TaskProvider({ children }) {
     updateTask,
     deleteTask,
     rescheduleTask,
+    reorderTasksInDay,
+    moveTaskToDay,
   }
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>

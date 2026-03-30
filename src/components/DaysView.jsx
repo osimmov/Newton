@@ -172,7 +172,7 @@ function DaysView() {
     <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
       <main
         ref={scrollRef}
-        className="flex-1 flex overflow-x-scroll overflow-y-hidden min-h-0 min-w-0"
+        className="flex-1 flex overflow-x-scroll overflow-y-hidden min-h-0 min-w-0 hide-scrollbar"
       >
         {dates.map((date) => (
           <DayColumn
