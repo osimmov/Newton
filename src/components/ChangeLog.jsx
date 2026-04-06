@@ -16,6 +16,34 @@ function formatDateHeader(iso) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+const HORIZON_LABEL = {
+  day: 'Days',
+  week: 'Weeks',
+  month: 'Months',
+  year: 'Years',
+}
+
+function kindToLabel(kind) {
+  return HORIZON_LABEL[kind] || kind
+}
+
+/** Short label for which horizon strip an entry belongs to (new metadata or legacy shapes). */
+function horizonBadgeText(entry) {
+  const m = entry.metadata
+  if (!m) {
+    if (entry.action === 'rescheduled' && (entry.fromDay != null || entry.toDay != null)) return HORIZON_LABEL.day
+    return null
+  }
+  if (m.from?.kind && m.to?.kind) {
+    return `${kindToLabel(m.from.kind)} → ${kindToLabel(m.to.kind)}`
+  }
+  if (m.horizonPanel && HORIZON_LABEL[m.horizonPanel]) {
+    return HORIZON_LABEL[m.horizonPanel]
+  }
+  if (m.fromDay != null || m.toDay != null) return HORIZON_LABEL.day
+  return null
+}
+
 function getActionIcon(action) {
   switch (action) {
     case 'completed':
@@ -92,32 +120,40 @@ function ChangeLog({ fullView }) {
                 {formatDateHeader(date)}
               </h3>
               <div className="space-y-2">
-                {grouped[date].map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex gap-2 items-start text-sm"
-                  >
-                    <div className="flex-shrink-0 mt-0.5">
-                      {getActionIcon(entry.action)}
+                {grouped[date].map((entry) => {
+                  const horizon = horizonBadgeText(entry)
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex gap-2 items-start text-sm"
+                    >
+                      <div className="flex-shrink-0 mt-0.5">
+                        {getActionIcon(entry.action)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-newton-muted">{formatTime(entry.timestamp)}</span>
+                        {horizon ? (
+                          <span className="ml-1 text-[10px] uppercase tracking-wide text-newton-muted/90 border border-newton-border rounded px-1 py-px align-middle">
+                            {horizon}
+                          </span>
+                        ) : null}
+                        <span className="text-newton-muted ml-1">
+                          {entry.message ? (
+                            entry.message
+                          ) : (
+                            <>
+                              <span className="bg-newton-surface px-1.5 py-0.5 rounded text-newton-text">
+                                {entry.taskName}
+                              </span>
+                              {' '}
+                              {ACTION_LABELS[entry.action] || ''}
+                            </>
+                          )}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-newton-muted">{formatTime(entry.timestamp)}</span>
-                      <span className="text-newton-muted ml-1">
-                        {entry.message ? (
-                          entry.message
-                        ) : (
-                          <>
-                            <span className="bg-newton-surface px-1.5 py-0.5 rounded text-newton-text">
-                              {entry.taskName}
-                            </span>
-                            {' '}
-                            {ACTION_LABELS[entry.action] || ''}
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))

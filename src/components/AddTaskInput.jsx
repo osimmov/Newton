@@ -1,22 +1,26 @@
 /**
  * AddTaskInput - Input field to add a new task to a specific day
  * Enter creates task. Blur (click outside) also creates task.
+ * formClassName: spacing when placed at top of column (e.g. "mb-2") vs below tasks (default "mt-2").
  */
 
 import { useState, useRef } from 'react'
 import { useTasks } from '../context/TaskContext'
 
-function AddTaskInput({ dayId }) {
-  const { addTask } = useTasks()
+function AddTaskInput({ dayId, bucketKind, bucketId, formClassName = 'mt-2' }) {
+  const { addTask, addTaskToBucket } = useTasks()
   const [value, setValue] = useState('')
   const inputRef = useRef(null)
 
   function commitTask() {
     const trimmed = value.trim()
-    if (trimmed) {
+    if (!trimmed) return
+    if (bucketKind && bucketId) {
+      addTaskToBucket(bucketKind, bucketId, trimmed)
+    } else if (dayId) {
       addTask(dayId, trimmed)
-      setValue('')
     }
+    setValue('')
   }
 
   function handleBlur() {
@@ -30,7 +34,7 @@ function AddTaskInput({ dayId }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-2">
+    <form onSubmit={handleSubmit} className={formClassName}>
       <input
         ref={inputRef}
         type="text"

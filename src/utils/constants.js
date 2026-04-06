@@ -8,6 +8,14 @@ export const STORAGE_KEYS = {
   CHANGE_LOG: 'newton_change_log',
   USER: 'newton_user',
   DATE_WINDOW: 'newton_date_window',
+  DAY_INSIGHTS: 'newton_day_insights_v3',
+  HORIZON_TAB: 'newton_horizon_tab',
+  WEEK_WINDOW: 'newton_week_window',
+  MONTH_WINDOW: 'newton_month_window',
+  YEAR_WINDOW: 'newton_year_window',
+  HORIZON_INSIGHTS: 'newton_horizon_insights_v1',
+  /** Per horizon kind (day | week | month | year): custom system prompts for AI insights */
+  INSIGHT_SYSTEM_PROMPTS: 'newton_insight_system_prompts_v1',
 }
 
 export const ACTIONS = {

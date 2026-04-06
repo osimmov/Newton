@@ -1,20 +1,33 @@
 /**
  * Task - Single task item with checkbox, title, description indicator
- * No description on main page. Click row opens pop-up (unless a drag just finished).
- * Whole row is draggable to reorder within a day or move to another day (not from checkbox/⋯).
+ * No description on main page. Click title area opens pop-up. @dnd-kit sortable for live reorder.
  */
 
 import { useState, useRef, useEffect } from 'react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTasks } from '../context/TaskContext'
+import { useHorizonDndUi } from '../context/HorizonDndUiContext'
 import TaskPopUp from './TaskPopUp'
 
-function Task({ task, dayTaskIndex = 0, onDragReorder }) {
+const CLICK_SUPPRESS_MS = 200
+
+function Task({ task }) {
   const { toggleTask, deleteTask } = useTasks()
+  const horizonDnd = useHorizonDndUi()
   const [menuOpen, setMenuOpen] = useState(false)
   const [popUpOpen, setPopUpOpen] = useState(false)
   const menuRef = useRef(null)
-  const blockDragFromInteractiveRef = useRef(false)
-  const suppressClickAfterDragRef = useRef(false)
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { opacity: 0.35 } : {}),
+  }
 
   useEffect(() => {
     if (!menuOpen) return
@@ -27,76 +40,33 @@ function Task({ task, dayTaskIndex = 0, onDragReorder }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [menuOpen])
 
-  useEffect(() => {
-    function clearBlock() {
-      blockDragFromInteractiveRef.current = false
-    }
-    window.addEventListener('pointerup', clearBlock)
-    window.addEventListener('pointercancel', clearBlock)
-    return () => {
-      window.removeEventListener('pointerup', clearBlock)
-      window.removeEventListener('pointercancel', clearBlock)
-    }
-  }, [])
-
-  function handleRowPointerDown(e) {
-    blockDragFromInteractiveRef.current = !!e.target.closest('button')
-  }
-
   function handleRowClick(e) {
     if (e.target.closest('button')) return
-    if (suppressClickAfterDragRef.current) return
+    const ref = horizonDnd?.lastDragEndAtRef
+    if (ref && Date.now() - ref.current < CLICK_SUPPRESS_MS) return
     setPopUpOpen(true)
-  }
-
-  function handleDragStart(e) {
-    if (blockDragFromInteractiveRef.current) {
-      e.preventDefault()
-      return
-    }
-    e.dataTransfer.setData('text/plain', task.id)
-    e.dataTransfer.effectAllowed = 'move'
-    e.stopPropagation()
-  }
-
-  function handleDragEnd() {
-    suppressClickAfterDragRef.current = true
-    window.setTimeout(() => {
-      suppressClickAfterDragRef.current = false
-    }, 150)
-  }
-
-  function handleDragOver(e) {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
-  function handleDrop(e) {
-    e.preventDefault()
-    e.stopPropagation()
-    const draggedId = e.dataTransfer.getData('text/plain')
-    if (!draggedId || draggedId === task.id || !onDragReorder) return
-    onDragReorder(draggedId, dayTaskIndex)
   }
 
   return (
     <>
       <div
+        ref={setNodeRef}
+        data-task-row
         role="button"
         tabIndex={0}
-        draggable
-        onPointerDown={handleRowPointerDown}
+        {...attributes}
+        style={style}
         onClick={handleRowClick}
         onKeyDown={(e) => e.key === 'Enter' && handleRowClick(e)}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        className="group flex items-center gap-2 py-2 px-1 border-b border-newton-border/50 last:border-b-0 cursor-grab active:cursor-grabbing hover:bg-newton-surface/50 rounded transition-colors select-none"
+        className="group flex items-center gap-2 py-2 px-1 border-b border-newton-border/50 last:border-b-0 hover:bg-newton-surface/50 rounded transition-colors select-none"
       >
-        {/* Checkbox */}
+        {/* Checkbox — not a drag activator */}
         <button
-          onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleTask(task.id)
+          }}
           className="flex-shrink-0 w-5 h-5 rounded border border-newton-border bg-transparent hover:border-newton-muted flex items-center justify-center transition-colors"
           aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
         >
@@ -107,8 +77,11 @@ function Task({ task, dayTaskIndex = 0, onDragReorder }) {
           )}
         </button>
 
-        {/* Title - truncate with ellipsis, expand vertically */}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+        {/* Title + description icon — drag activator */}
+        <div
+          {...listeners}
+          className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden cursor-grab active:cursor-grabbing touch-none"
+        >
           <span
             className={`text-newton-text text-sm truncate block ${task.completed ? 'line-through text-newton-muted' : ''}`}
           >
@@ -125,10 +98,14 @@ function Task({ task, dayTaskIndex = 0, onDragReorder }) {
           )}
         </div>
 
-        {/* Options button (⋯) - visible on hover */}
+        {/* Options button (⋯) */}
         <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
           <button
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setMenuOpen(!menuOpen)
+            }}
             className="p-1 rounded-full hover:bg-newton-surface text-newton-muted hover:text-newton-text transition-colors"
             title="Options"
             aria-expanded={menuOpen}
@@ -140,7 +117,12 @@ function Task({ task, dayTaskIndex = 0, onDragReorder }) {
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 py-1 min-w-[120px] bg-newton-surface border border-newton-border rounded-lg shadow-lg z-20">
               <button
-                onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setMenuOpen(false); }}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  deleteTask(task.id)
+                  setMenuOpen(false)
+                }}
                 className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
               >
                 Delete task
@@ -150,12 +132,7 @@ function Task({ task, dayTaskIndex = 0, onDragReorder }) {
         </div>
       </div>
 
-      {popUpOpen && (
-        <TaskPopUp
-          task={task}
-          onClose={() => setPopUpOpen(false)}
-        />
-      )}
+      {popUpOpen && <TaskPopUp task={task} onClose={() => setPopUpOpen(false)} />}
     </>
   )
 }
