@@ -5,6 +5,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTasks } from '../context/TaskContext'
+import { formatWeekTitle, formatWeekRangeLabel, formatMonthTitle } from '../utils/calendarHorizon'
 
 function TaskPopUp({ task, onClose }) {
   const { toggleTask, updateTask } = useTasks()
@@ -58,7 +59,15 @@ function TaskPopUp({ task, onClose }) {
     updateTask(task.id, { description: editDescription })
   }
 
-  const dateStr = task.dayId ? new Date(task.dayId + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : ''
+  const dateStr = task.weekId
+    ? `${formatWeekTitle(task.weekId)} · ${formatWeekRangeLabel(task.weekId)}`
+    : task.monthId
+      ? formatMonthTitle(task.monthId)
+      : task.yearId
+        ? task.yearId
+        : task.dayId
+          ? new Date(task.dayId + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+          : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

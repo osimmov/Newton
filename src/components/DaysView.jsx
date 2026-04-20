@@ -6,6 +6,7 @@
 
 import { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react'
 import DayColumn from './DayColumn'
+import { HorizonDndProvider } from './HorizonDndProvider'
 import { loadDateWindow, saveDateWindow } from '../utils/storage'
 
 const WINDOW_SIZE = 30 // days before/after today (61 blocks initial)
@@ -74,13 +75,11 @@ function DaysView() {
 
   const dates = getDates(windowStart, windowEnd)
   const todayStr = today.toDateString()
+  const todayIdStr = toDayId(today)
 
   const expandLeft = useCallback(() => {
     const now = Date.now()
     const blocked = now - lastExpandLeftRef.current < COOLDOWN_MS
-    // #region agent log
-    fetch('http://127.0.0.1:7693/ingest/d4c085ae-a28d-4795-8b22-2314b7032411',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cf797a'},body:JSON.stringify({sessionId:'cf797a',location:'DaysView.jsx:expandLeft',message:'expandLeft',data:{blocked},hypothesisId:'D',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (blocked) return
     lastExpandLeftRef.current = now
     justExpandedLeftRef.current = true
@@ -94,9 +93,6 @@ function DaysView() {
   const expandRight = useCallback(() => {
     const now = Date.now()
     const blocked = now - lastExpandRightRef.current < COOLDOWN_MS
-    // #region agent log
-    fetch('http://127.0.0.1:7693/ingest/d4c085ae-a28d-4795-8b22-2314b7032411',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cf797a'},body:JSON.stringify({sessionId:'cf797a',location:'DaysView.jsx:expandRight',message:'expandRight',data:{blocked},hypothesisId:'D',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (blocked) return
     lastExpandRightRef.current = now
     setWindowEnd((prev) => {
@@ -115,26 +111,29 @@ function DaysView() {
     justExpandedLeftRef.current = false
   }, [windowStart])
 
+  useLayoutEffect(() => {
+    if (dates.length === 0) return
+    const hasToday = dates.some((d) => toDayId(d) === todayIdStr)
+    if (hasToday) return
+    const ts = new Date()
+    ts.setHours(0, 0, 0, 0)
+    const ws = new Date(ts)
+    ws.setDate(ws.getDate() - WINDOW_SIZE)
+    const we = new Date(ts)
+    we.setDate(we.getDate() + WINDOW_SIZE)
+    setWindowStart(ws)
+    setWindowEnd(we)
+    hasScrolledToTodayRef.current = false
+  }, [dates, todayIdStr])
+
   useEffect(() => {
     const container = scrollRef.current
-    const sw = container?.scrollWidth ?? 0
-    const cw = container?.clientWidth ?? 0
-    const max = sw - cw
-    // #region agent log
-    fetch('http://127.0.0.1:7693/ingest/d4c085ae-a28d-4795-8b22-2314b7032411',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cf797a'},body:JSON.stringify({sessionId:'cf797a',location:'DaysView.jsx:effect',message:'scroll listener setup',data:{hasContainer:!!container,scrollWidth:sw,clientWidth:cw,maxScroll:max},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!container) return
-    let lastLog = 0
     const onScroll = () => {
       const { scrollLeft, scrollWidth, clientWidth } = container
       const maxScroll = scrollWidth - clientWidth
       const hitLeft = maxScroll > 0 && scrollLeft < EDGE_THRESHOLD
       const hitRight = maxScroll > 0 && scrollLeft > maxScroll - EDGE_THRESHOLD
-      if (Date.now() - lastLog < 400) return
-      lastLog = Date.now()
-      // #region agent log
-      fetch('http://127.0.0.1:7693/ingest/d4c085ae-a28d-4795-8b22-2314b7032411',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cf797a'},body:JSON.stringify({sessionId:'cf797a',location:'DaysView.jsx:onScroll',message:'scroll',data:{scrollLeft,maxScroll,hitLeft,hitRight},hypothesisId:'A',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (maxScroll <= 0) return
       if (hitLeft) expandLeft()
       if (hitRight) expandRight()
@@ -146,44 +145,53 @@ function DaysView() {
   function scrollToToday() {
     const container = scrollRef.current
     if (!container) return
-    const todayCol = container.querySelector('[data-today="true"]')
-    if (todayCol) {
-      todayCol.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
-    }
+    const idx = dates.findIndex((d) => toDayId(d) === todayIdStr)
+    if (idx < 0) return
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth)
+    const scrollLeft = Math.max(
+      0,
+      Math.min(maxScroll, idx * COLUMN_WIDTH - container.clientWidth / 2 + COLUMN_WIDTH / 2)
+    )
+    container.scrollTo({ left: scrollLeft, behavior: 'smooth' })
   }
 
   useLayoutEffect(() => {
     if (hasScrolledToTodayRef.current) return
     const container = scrollRef.current
     if (!container) return
-    const todayIndex = dates.findIndex((d) => d.toDateString() === todayStr)
+    const todayIndex = dates.findIndex((d) => toDayId(d) === todayIdStr)
     if (todayIndex < 0) return
     const applyScroll = () => {
       const maxScroll = container.scrollWidth - container.clientWidth
-      const scrollLeft = Math.max(0, Math.min(maxScroll, todayIndex * COLUMN_WIDTH - container.clientWidth / 2 + COLUMN_WIDTH / 2))
+      const scrollLeft = Math.max(
+        0,
+        Math.min(maxScroll, todayIndex * COLUMN_WIDTH - container.clientWidth / 2 + COLUMN_WIDTH / 2)
+      )
       container.scrollLeft = scrollLeft
     }
     applyScroll()
     if (container.clientWidth === 0) requestAnimationFrame(applyScroll)
     hasScrolledToTodayRef.current = true
-  }, [dates, todayStr])
+  }, [dates, todayIdStr])
 
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
-      <main
-        ref={scrollRef}
-        className="flex-1 flex overflow-x-scroll overflow-y-hidden min-h-0 min-w-0"
-      >
-        {dates.map((date) => (
-          <DayColumn
-            key={toDayId(date)}
-            dayId={toDayId(date)}
-            date={date}
-            isToday={date.toDateString() === todayStr}
-            data-today={date.toDateString() === todayStr ? 'true' : undefined}
-          />
-        ))}
-      </main>
+      <HorizonDndProvider>
+        <main
+          ref={scrollRef}
+          className="flex-1 flex overflow-x-scroll overflow-y-hidden min-h-0 min-w-0 hide-scrollbar"
+        >
+          {dates.map((date) => (
+            <DayColumn
+              key={toDayId(date)}
+              dayId={toDayId(date)}
+              date={date}
+              isToday={date.toDateString() === todayStr}
+              data-today={date.toDateString() === todayStr ? 'true' : undefined}
+            />
+          ))}
+        </main>
+      </HorizonDndProvider>
 
       <button
         onClick={scrollToToday}

@@ -1,6 +1,5 @@
 /**
- * DayColumn - Single day column in the infinite timeline
- * Shows day name, full date, task list, and Add input
+ * Generic horizon column for week / month / year buckets (tasks + add + insights).
  */
 
 import { useDroppable } from '@dnd-kit/core'
@@ -9,55 +8,59 @@ import { useTasks } from '../context/TaskContext'
 import { useDayInsights } from '../context/DayInsightsContext'
 import Task from './Task'
 import AddTaskInput from './AddTaskInput'
-import { DAYS } from '../utils/constants'
-import { taskColumnDroppableId } from '../utils/dndIds'
-import { isDayScopedTask } from '../utils/taskBuckets'
+import { horizonColumnDroppableId } from '../utils/dndIds'
+import { tasksInBucket } from '../utils/taskBuckets'
 
-function DayColumn({ dayId, date, isToday, ...rest }) {
-  const dayName = DAYS[date.getDay()]
-  const dateStr = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
-  const { openDayInsights, responses, loadingByKey } = useDayInsights()
-  const insightKey = `day:${dayId}`
-  const insightLoading = !!loadingByKey[insightKey]
-  const hasInsight = Boolean((responses[insightKey] || '').trim())
+export default function HorizonBucketColumn({
+  bucketKind,
+  bucketId,
+  title,
+  subtitle,
+  isHighlight,
+  ...rest
+}) {
+  const { openHorizonInsights, responses, loadingByKey, insightStorageKey } = useDayInsights()
+  const key = insightStorageKey(bucketKind, bucketId)
+  const insightLoading = !!loadingByKey[key]
+  const hasInsight = Boolean((responses[key] || '').trim())
+  const labelForModal = subtitle ? `${title} · ${subtitle}` : title
 
   return (
     <div
-      className={`flex flex-col h-full min-h-0 w-[280px] min-w-[280px] flex-shrink-0 border-r border-newton-border overflow-hidden ${isToday ? 'bg-newton-surface/30' : ''}`}
-      data-day-id={dayId}
+      className={`flex flex-col h-full min-h-0 w-[280px] min-w-[280px] flex-shrink-0 border-r border-newton-border overflow-hidden ${isHighlight ? 'bg-newton-surface/30' : ''}`}
+      data-bucket-id={bucketId}
       {...rest}
     >
-      {/* Header: day insights (right). Today: date in orange */}
       <div className="flex items-start justify-between gap-2 px-4 py-4 border-b border-newton-border">
         <div className="min-w-0">
-          <h2 className={`text-lg font-semibold ${isToday ? 'text-newton-today' : 'text-newton-text'}`}>
-            {dayName}
+          <h2
+            className={`text-lg font-semibold ${isHighlight ? 'text-newton-today' : 'text-newton-text'}`}
+          >
+            {title}
           </h2>
-          <p className={`text-sm mt-0.5 ${isToday ? 'text-newton-today' : 'text-newton-muted'}`}>
-            {dateStr}
-          </p>
+          {subtitle && (
+            <p
+              className={`text-sm mt-0.5 ${isHighlight ? 'text-newton-today' : 'text-newton-muted'}`}
+            >
+              {subtitle}
+            </p>
+          )}
         </div>
         <button
           type="button"
-          onClick={() => openDayInsights(dayId, dateStr)}
+          onClick={() => openHorizonInsights(bucketKind, bucketId, labelForModal)}
           aria-busy={insightLoading}
           className={`flex-shrink-0 p-1.5 rounded-lg transition-colors hover:bg-newton-charcoal ${
             insightLoading
               ? 'text-newton-today'
               : hasInsight
-                ? isToday
+                ? isHighlight
                   ? 'text-newton-today'
                   : 'text-amber-400/90 hover:text-amber-300'
                 : 'text-newton-muted hover:text-newton-text'
           }`}
-          aria-label={
-            insightLoading
-              ? `Generating insights for ${dayName}, ${dateStr}`
-              : hasInsight
-                ? `View saved insights for ${dayName}, ${dateStr}`
-                : `AI insights for ${dayName}, ${dateStr}`
-          }
-          title={insightLoading ? 'Generating insights…' : hasInsight ? 'View insights' : 'Day insights'}
+          aria-label={`Insights for ${labelForModal}`}
+          title={insightLoading ? 'Generating insights…' : hasInsight ? 'View insights' : 'Insights'}
         >
           {insightLoading ? (
             <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
@@ -90,52 +93,47 @@ function DayColumn({ dayId, date, isToday, ...rest }) {
         </button>
       </div>
 
-      {/* Task list + Add input — Add at top when empty, below tasks when not */}
       <div className="flex-1 min-h-0 h-full px-4 py-3 overflow-y-auto flex flex-col">
-        <DayTaskList dayId={dayId} />
+        <BucketTaskList bucketKind={bucketKind} bucketId={bucketId} />
       </div>
     </div>
   )
 }
 
-function DayTaskList({ dayId }) {
+function BucketTaskList({ bucketKind, bucketId }) {
   const { tasks } = useTasks()
-  const dayTasks = tasks
-    .filter((t) => isDayScopedTask(t) && t.dayId === dayId)
-    .sort((a, b) => {
-      const oa = typeof a.order === 'number' ? a.order : 0
-      const ob = typeof b.order === 'number' ? b.order : 0
-      if (oa !== ob) return oa - ob
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    })
+  const bucketTasks = tasksInBucket(tasks, bucketKind, bucketId).sort((a, b) => {
+    const oa = typeof a.order === 'number' ? a.order : 0
+    const ob = typeof b.order === 'number' ? b.order : 0
+    if (oa !== ob) return oa - ob
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
 
-  const itemIds = dayTasks.map((t) => t.id)
-  const isEmpty = dayTasks.length === 0
+  const itemIds = bucketTasks.map((t) => t.id)
+  const isEmpty = bucketTasks.length === 0
 
   const { setNodeRef } = useDroppable({
-    id: taskColumnDroppableId(dayId),
-    data: { type: 'column', dayId },
+    id: horizonColumnDroppableId(bucketKind, bucketId),
+    data: { type: 'column', bucketKind, bucketId },
   })
 
   return (
     <div ref={setNodeRef} className="flex-1 min-h-0 h-full w-full flex flex-col">
       {isEmpty ? (
         <>
-          <AddTaskInput dayId={dayId} formClassName="mb-2 flex-shrink-0" />
+          <AddTaskInput bucketKind={bucketKind} bucketId={bucketId} formClassName="mb-2 flex-shrink-0" />
           <div className="flex-1 min-h-0 min-w-0 w-full basis-0 grow" aria-hidden />
         </>
       ) : (
         <>
           <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-            {dayTasks.map((task) => (
+            {bucketTasks.map((task) => (
               <Task key={task.id} task={task} />
             ))}
           </SortableContext>
-          <AddTaskInput dayId={dayId} />
+          <AddTaskInput bucketKind={bucketKind} bucketId={bucketId} />
         </>
       )}
     </div>
   )
 }
-
-export default DayColumn
