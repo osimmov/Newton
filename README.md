@@ -2,6 +2,8 @@
 
 A clean, functional productivity platform with a weekly task view and change tracking.
 
+![Newton screenshot](docs/screenshot.png)
+
 ## Project Roadmap
 
 *(6–8 hours/week; Thu = busiest; more time Tue/Sat/Sun)*

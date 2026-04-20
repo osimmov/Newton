@@ -141,6 +141,42 @@ export function shiftWeekId(weekId, deltaWeeks) {
   return weekIdFromDate(d)
 }
 
+/** Local calendar YYYY-MM-DD (matches day column ids). */
+export function toDayIdLocal(date) {
+  const d = new Date(date)
+  const y = d.getFullYear()
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${mo}-${day}`
+}
+
+/** Monday–Sunday day ids for an ISO week id (e.g. 2026-W15). */
+export function dayIdsInIsoWeek(weekId) {
+  const mon = mondayFromWeekId(weekId)
+  if (!mon) return []
+  const out = []
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(mon)
+    dt.setDate(mon.getDate() + i)
+    out.push(toDayIdLocal(dt))
+  }
+  return out
+}
+
+/** All day ids (YYYY-MM-DD) in a given month id (e.g. "2026-04"). */
+export function dayIdsInMonth(monthId) {
+  const d = dateFromMonthId(monthId)
+  if (!d) return []
+  const year = d.getFullYear()
+  const month = d.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const out = []
+  for (let day = 1; day <= daysInMonth; day++) {
+    out.push(toDayIdLocal(new Date(year, month, day)))
+  }
+  return out
+}
+
 export function shiftMonthId(monthId, deltaMonths) {
   const d = dateFromMonthId(monthId)
   if (!d) return monthId

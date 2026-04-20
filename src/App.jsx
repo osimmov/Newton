@@ -39,7 +39,7 @@ function App() {
           {/* AI Reflections panel */}
           {activeView === 'reflections' && (
             <div
-              className="flex-1 flex overflow-hidden"
+              className="flex-1 flex min-w-0 w-full overflow-hidden"
               style={{ animation: 'slideInLeft 0.25s ease-out forwards' }}
             >
               <ReflectionsPanel />

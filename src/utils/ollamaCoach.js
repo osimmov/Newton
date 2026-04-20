@@ -40,5 +40,28 @@ export async function fetchCoachChat({ systemPrompt, userContent, model, baseUrl
   return data.message?.content ?? ''
 }
 
+/**
+ * Multi-turn chat for Ollama. `messages` must be OpenAI-style { role, content }[];
+ * typically starts with { role: 'system', content } then alternating user/assistant.
+ */
+export async function fetchCoachChatMessages({ messages, model, baseUrl }) {
+  const url = `${baseUrl}/api/chat`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `Ollama error: ${res.status}`)
+  }
+  const data = await res.json()
+  return data.message?.content ?? ''
+}
+
 export const COACH_MODEL = OLLAMA_REFLECTIONS_MODEL
 export const COACH_BASE_URL = OLLAMA_BASE_URL

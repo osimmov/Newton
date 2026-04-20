@@ -5,7 +5,8 @@
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useTasks } from './TaskContext'
-import { fetchCoachChat, COACH_MODEL, COACH_BASE_URL } from '../utils/ollamaCoach'
+import { fetchHorizonInsights } from '../utils/insightsCoach'
+import { getInsightsModelDisplayName } from '../utils/constants'
 import {
   loadHorizonInsights,
   saveHorizonInsights,
@@ -13,7 +14,8 @@ import {
   saveInsightSystemPrompts,
 } from '../utils/storage'
 import DayInsightsModal from '../components/DayInsightsModal'
-import { BUCKET_KIND, tasksInBucket } from '../utils/taskBuckets'
+import { BUCKET_KIND, tasksInBucket, isDayScopedTask } from '../utils/taskBuckets'
+import { dayIdsInIsoWeek, dayIdsInMonth } from '../utils/calendarHorizon'
 
 export function insightStorageKey(kind, id) {
   return `${kind}:${id}`
@@ -28,8 +30,8 @@ const GRAIN_LABEL = {
 
 export const DEFAULT_INSIGHT_SYSTEM_PROMPT_BY_KIND = {
   [BUCKET_KIND.DAY]: `You are a friendly productivity coach. The lists describe tasks on ONE day column of the user's board. "Completed" are marked done on that column; "still open" are scheduled there but not done. Compare progress, patterns, and give 2–4 short, actionable tips. Be supportive. Under 200 words.`,
-  [BUCKET_KIND.WEEK]: `You are a friendly productivity coach. The lists describe ONE calendar week column (Monday–Sunday) on the user's board. Relate completed vs still-open tasks for that week; give 2–4 short insights. Under 200 words.`,
-  [BUCKET_KIND.MONTH]: `You are a friendly productivity coach. The lists describe ONE month column on the user's board. Relate completed vs still-open tasks for that month; give 2–4 short insights. Under 200 words.`,
+  [BUCKET_KIND.WEEK]: `You are a friendly productivity coach. The user sees a calendar week (Mon–Sun). One list is tasks completed on **daily columns** within those dates. Another list is the **week column** (tasks parked on that week bucket): completed vs still open. Compare the two when both have items: e.g. work finished on specific days vs broader week-level tasks, balance, overload. If only one side has data, focus there. 2–4 short insights, supportive, under 200 words.`,
+  [BUCKET_KIND.MONTH]: `You are a friendly productivity coach. The user sees one calendar month. One list is tasks completed on **daily columns** within that month. Another list is the **month column** (tasks parked on that month bucket): completed vs still open. Compare the two when both have items: e.g. work finished on specific days vs broader month-level goals, pacing, balance. If only one side has data, focus there. 2–4 short insights, supportive, under 200 words.`,
   [BUCKET_KIND.YEAR]: `You are a friendly productivity coach. The lists describe ONE year column on the user's board. Relate completed vs still-open tasks for that year; give 2–4 short insights. Under 200 words.`,
 }
 
@@ -58,6 +60,146 @@ function buildSummaryLines(taskList) {
       return `- ${t.title}`
     })
     .join('\n')
+}
+
+function formatDayIdLabel(dayId) {
+  const d = new Date(`${dayId}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return dayId
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' })
+  const rest = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${weekday} ${rest}`
+}
+
+/** Day-column completions per day + week-bucket slices for one ISO week. */
+function getWeekInsightSlices(tasks, weekId) {
+  const dayIds = dayIdsInIsoWeek(weekId)
+  const daySet = new Set(dayIds)
+  const byDay = new Map()
+  for (const d of dayIds) byDay.set(d, [])
+  for (const t of tasks) {
+    if (isDayScopedTask(t) && t.completed && t.dayId && daySet.has(t.dayId)) {
+      byDay.get(t.dayId).push(t)
+    }
+  }
+  for (const d of dayIds) byDay.set(d, sortBucketTasks(byDay.get(d)))
+
+  const weekTasks = tasksInBucket(tasks, BUCKET_KIND.WEEK, weekId)
+  return {
+    dayIds,
+    byDay,
+    weekDone: sortBucketTasks(weekTasks.filter((t) => t.completed)),
+    weekOpen: sortBucketTasks(weekTasks.filter((t) => !t.completed)),
+  }
+}
+
+function weekSlicesHasInsightData(s) {
+  for (const list of s.byDay.values()) {
+    if (list.length > 0) return true
+  }
+  return s.weekDone.length + s.weekOpen.length > 0
+}
+
+function weekSlicesEntryCount(s) {
+  let n = s.weekDone.length + s.weekOpen.length
+  for (const list of s.byDay.values()) n += list.length
+  return n
+}
+
+function buildWeekInsightUserContent(slices, weekId, label) {
+  const { dayIds, byDay, weekDone, weekOpen } = slices
+  const daySections = []
+  for (const did of dayIds) {
+    const list = byDay.get(did)
+    if (!list?.length) continue
+    daySections.push(`${formatDayIdLabel(did)} (${did}):`, buildSummaryLines(list))
+  }
+  const dayPart =
+    daySections.length > 0
+      ? daySections.join('\n')
+      : '(none — no completed tasks on daily columns in this week)'
+
+  const weekDoneSummary = weekDone.length ? buildSummaryLines(weekDone) : '(none)'
+  const weekOpenSummary = weekOpen.length ? buildSummaryLines(weekOpen) : '(none)'
+
+  return `Horizon: one calendar week (${label}, week id ${weekId}).
+
+Completed tasks on **daily columns** (Mon–Sun in this week), grouped by day:
+${dayPart}
+
+**Week column** (tasks assigned directly to this week bucket):
+Completed:
+${weekDoneSummary}
+
+Still on week column, not complete:
+${weekOpenSummary}
+
+Give concise coaching. When both daily completions and week-column tasks exist, compare them.`
+}
+
+/** Day-column completions per day + month-bucket slices for one calendar month. */
+function getMonthInsightSlices(tasks, monthId) {
+  const dayIds = dayIdsInMonth(monthId)
+  const daySet = new Set(dayIds)
+  const byDay = new Map()
+  for (const d of dayIds) byDay.set(d, [])
+  for (const t of tasks) {
+    if (isDayScopedTask(t) && t.completed && t.dayId && daySet.has(t.dayId)) {
+      byDay.get(t.dayId).push(t)
+    }
+  }
+  for (const d of dayIds) byDay.set(d, sortBucketTasks(byDay.get(d)))
+
+  const monthTasks = tasksInBucket(tasks, BUCKET_KIND.MONTH, monthId)
+  return {
+    dayIds,
+    byDay,
+    monthDone: sortBucketTasks(monthTasks.filter((t) => t.completed)),
+    monthOpen: sortBucketTasks(monthTasks.filter((t) => !t.completed)),
+  }
+}
+
+function monthSlicesHasInsightData(s) {
+  for (const list of s.byDay.values()) {
+    if (list.length > 0) return true
+  }
+  return s.monthDone.length + s.monthOpen.length > 0
+}
+
+function monthSlicesEntryCount(s) {
+  let n = s.monthDone.length + s.monthOpen.length
+  for (const list of s.byDay.values()) n += list.length
+  return n
+}
+
+function buildMonthInsightUserContent(slices, monthId, label) {
+  const { dayIds, byDay, monthDone, monthOpen } = slices
+  const daySections = []
+  for (const did of dayIds) {
+    const list = byDay.get(did)
+    if (!list?.length) continue
+    daySections.push(`${formatDayIdLabel(did)} (${did}):`, buildSummaryLines(list))
+  }
+  const dayPart =
+    daySections.length > 0
+      ? daySections.join('\n')
+      : '(none — no completed tasks on daily columns in this month)'
+
+  const monthDoneSummary = monthDone.length ? buildSummaryLines(monthDone) : '(none)'
+  const monthOpenSummary = monthOpen.length ? buildSummaryLines(monthOpen) : '(none)'
+
+  return `Horizon: one calendar month (${label}, month id ${monthId}).
+
+Completed tasks on **daily columns** within this month, grouped by day:
+${dayPart}
+
+**Month column** (tasks assigned directly to this month bucket):
+Completed:
+${monthDoneSummary}
+
+Still on month column, not complete:
+${monthOpenSummary}
+
+Give concise coaching. When both daily completions and month-column tasks exist, compare them.`
 }
 
 const DayInsightsContext = createContext(null)
@@ -124,10 +266,35 @@ export function DayInsightsProvider({ children }) {
 
   const generateForBucket = useCallback(
     async (kind, id, label) => {
-      const done = completedInBucket(tasks, kind, id)
-      if (done.length === 0) return
-
       const key = insightStorageKey(kind, id)
+
+      let userContent = ''
+      if (kind === BUCKET_KIND.WEEK) {
+        const slices = getWeekInsightSlices(tasks, id)
+        if (!weekSlicesHasInsightData(slices)) return
+        userContent = buildWeekInsightUserContent(slices, id, label)
+      } else if (kind === BUCKET_KIND.MONTH) {
+        const slices = getMonthInsightSlices(tasks, id)
+        if (!monthSlicesHasInsightData(slices)) return
+        userContent = buildMonthInsightUserContent(slices, id, label)
+      } else {
+        const done = completedInBucket(tasks, kind, id)
+        if (done.length === 0) return
+        const open = incompleteInBucket(tasks, kind, id)
+        const doneSummary = buildSummaryLines(done)
+        const openSummary = open.length ? buildSummaryLines(open) : '(none)'
+        const grain = GRAIN_LABEL[kind] || 'period'
+        userContent = `Horizon: one ${grain} column (${label}, id ${id}).
+
+Completed tasks on this ${grain} column:
+${doneSummary}
+
+Still on this ${grain} column but not marked complete:
+${openSummary}
+
+Give concise coaching based on both lists.`
+      }
+
       const prev = requestIdByKeyRef.current[key] ?? 0
       const myId = prev + 1
       requestIdByKeyRef.current[key] = myId
@@ -139,34 +306,29 @@ export function DayInsightsProvider({ children }) {
       })
       setLoadingByKey((m) => ({ ...m, [key]: true }))
 
-      const open = incompleteInBucket(tasks, kind, id)
-      const doneSummary = buildSummaryLines(done)
-      const openSummary = open.length ? buildSummaryLines(open) : '(none)'
-
-      const grain = GRAIN_LABEL[kind] || 'period'
-      const userContent = `Horizon: one ${grain} column (${label}, id ${id}).
-
-Completed tasks on this ${grain} column:
-${doneSummary}
-
-Still on this ${grain} column but not marked complete:
-${openSummary}
-
-Give concise coaching based on both lists.`
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 90_000)
 
       try {
-        const text = await fetchCoachChat({
+        const text = await fetchHorizonInsights({
           systemPrompt: resolveSystemPrompt(kind),
           userContent,
-          model: COACH_MODEL,
-          baseUrl: COACH_BASE_URL,
+          signal: controller.signal,
+          onChunk(accumulated) {
+            if (requestIdByKeyRef.current[key] !== myId) return
+            setResponses((r) => ({ ...r, [key]: accumulated }))
+          },
         })
         if (requestIdByKeyRef.current[key] !== myId) return
         setResponses((r) => ({ ...r, [key]: text.trim() }))
       } catch (err) {
         if (requestIdByKeyRef.current[key] !== myId) return
-        setErrors((e) => ({ ...e, [key]: err.message || 'Failed to get insights' }))
+        const msg = err.name === 'AbortError'
+          ? 'Request timed out. Is the coach proxy running?'
+          : (err.message || 'Failed to get insights')
+        setErrors((e) => ({ ...e, [key]: msg }))
       } finally {
+        clearTimeout(timeout)
         if (requestIdByKeyRef.current[key] === myId) {
           setLoadingByKey((m) => {
             const next = { ...m }
@@ -190,8 +352,16 @@ Give concise coaching based on both lists.`
 
   useEffect(() => {
     if (!open || !modalId) return
-    const done = completedInBucket(tasks, modalKind, modalId)
-    if (done.length === 0) return
+    if (modalKind === BUCKET_KIND.WEEK) {
+      const slices = getWeekInsightSlices(tasks, modalId)
+      if (!weekSlicesHasInsightData(slices)) return
+    } else if (modalKind === BUCKET_KIND.MONTH) {
+      const slices = getMonthInsightSlices(tasks, modalId)
+      if (!monthSlicesHasInsightData(slices)) return
+    } else {
+      const done = completedInBucket(tasks, modalKind, modalId)
+      if (done.length === 0) return
+    }
     if (responses[modalKey]) return
     if (loadingByKey[modalKey]) return
     if (errors[modalKey]) return
@@ -221,7 +391,16 @@ Give concise coaching based on both lists.`
     [openDayInsights, openHorizonInsights, closeDayInsights, responses, loadingByKey]
   )
 
-  const entryCount = modalId ? completedInBucket(tasks, modalKind, modalId).length : 0
+  const entryCount = (() => {
+    if (!modalId) return 0
+    if (modalKind === BUCKET_KIND.WEEK) {
+      return weekSlicesEntryCount(getWeekInsightSlices(tasks, modalId))
+    }
+    if (modalKind === BUCKET_KIND.MONTH) {
+      return monthSlicesEntryCount(getMonthInsightSlices(tasks, modalId))
+    }
+    return completedInBucket(tasks, modalKind, modalId).length
+  })()
 
   return (
     <DayInsightsContext.Provider value={value}>
@@ -235,7 +414,7 @@ Give concise coaching based on both lists.`
           error={errors[modalKey]}
           loading={!!loadingByKey[modalKey]}
           onRegenerate={regenerateDay}
-          modelName={COACH_MODEL}
+          modelName={getInsightsModelDisplayName()}
           entryCount={entryCount}
           effectiveSystemPrompt={resolveSystemPrompt(modalKind)}
           defaultSystemPrompt={

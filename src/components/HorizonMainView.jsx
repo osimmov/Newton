@@ -24,9 +24,9 @@ export default function HorizonMainView() {
   }, [tab])
 
   return (
-    <div className="flex-1 flex min-h-0 min-w-0">
+    <div className="flex-1 flex flex-col min-h-0 min-w-0">
       <nav
-        className="w-36 flex-shrink-0 border-r border-newton-border bg-newton-charcoal/40 flex flex-col py-4 px-2 gap-0.5"
+        className="flex w-full flex-shrink-0 flex-row items-stretch border-b border-newton-border bg-newton-charcoal/40"
         aria-label="Horizon scale"
       >
         {TABS.map(({ id, label }) => (
@@ -34,7 +34,7 @@ export default function HorizonMainView() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 min-w-0 py-2.5 text-center text-sm font-medium transition-colors ${
               tab === id
                 ? 'bg-newton-surface text-newton-text'
                 : 'text-newton-muted hover:text-newton-text hover:bg-newton-charcoal'
